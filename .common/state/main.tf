@@ -15,7 +15,7 @@ terraform {
   backend "s3" {
     bucket = "ops-config-mgmt"
     region = "us-east-1"
-    key = "terraform-state/stack/state/terraform.tfstate"
+    key = "terraform-state/aws-tf/state/terraform.tfstate"
   }
 }
 
