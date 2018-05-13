@@ -2,12 +2,12 @@ variable "region" {
   default = "us-east-1"
 }
 
-provider "aws" {
-  region = "${var.region}"
+variable "lambda_name" {
+  default = "edge-path-based-spa"
 }
 
-locals {
-  lambda_name = "path-based-spa-edge"
+provider "aws" {
+  region = "${var.region}"
 }
 
 data "aws_iam_policy_document" "lambda" {
@@ -32,13 +32,13 @@ data "archive_file" "lambda" {
 
 resource "aws_iam_role" "lambda" {
   provider = "aws"
-  name = "${local.lambda_name}-role"
+  name = "${var.lambda_name}-role"
   assume_role_policy = "${data.aws_iam_policy_document.lambda.json}"
 }
 
 resource "aws_lambda_function" "lambda" {
   provider = "aws"
-  function_name = "${local.lambda_name}"
+  function_name = "${var.lambda_name}"
   filename = "${data.archive_file.lambda.output_path}"
   source_code_hash = "${data.archive_file.lambda.output_base64sha256}"
   role = "${aws_iam_role.lambda.arn}"
