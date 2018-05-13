@@ -1,9 +1,12 @@
 
-module "state" {
-  source = "../../../.common/state"
-}
-
 module "s3_replicated_test" {
   source = "../"
-  bucket_name = "s3-replicated-test-${module.state.account_id}"
+}
+
+output "arn" {
+  value = "${module.s3_replicated_test.arn}"
+}
+
+output "replica_arn" {
+  value = "${module.s3_replicated_test.replica_arn}"
 }
