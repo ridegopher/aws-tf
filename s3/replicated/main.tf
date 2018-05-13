@@ -1,16 +1,6 @@
 variable "bucket_name" {
-  description = "The name of the source bucket"
-}
-
-# END REQUIRED FIELDS
-
-provider "aws" {
-  region = "${var.region}"
-}
-
-provider "aws" {
-  alias  = "replica"
-  region = "${var.replica_region}"
+  description = "The name of the source bucket. If non is provided one will be generated"
+  default = ""
 }
 
 variable "replica_postfix" {
@@ -28,8 +18,27 @@ variable "replica_region" {
   default = "us-west-1"
 }
 
+variable "storage_class" {
+  default = "REDUCED_REDUNDANCY"
+}
+
+provider "aws" {
+  region = "${var.region}"
+}
+
+provider "aws" {
+  alias  = "replica"
+  region = "${var.replica_region}"
+}
+
+data "aws_caller_identity" "acct" {}
+
+locals {
+  bucket_name = "${var.bucket_name == "" ? "s3-replication-${data.aws_caller_identity.acct.account_id}" : var.bucket_name}"
+}
+
 resource "aws_iam_role" "s3_replication" {
-  name = "s3-replication-role-${var.bucket_name}"
+  name = "s3-replication-role-${local.bucket_name}"
   assume_role_policy = <<POLICY
 {
   "Version": "2012-10-17",
@@ -48,7 +57,7 @@ POLICY
 }
 
 resource "aws_iam_policy" "s3_replication" {
-  name = "s3-replication-policy-${var.bucket_name}"
+  name = "s3-replication-policy-${local.bucket_name}"
   policy = <<POLICY
 {
   "Version": "2012-10-17",
@@ -87,14 +96,14 @@ POLICY
 }
 
 resource "aws_iam_policy_attachment" "s3_replication" {
-  name = "s3-replication-policy-attachment-${var.bucket_name}"
+  name = "s3-replication-policy-attachment-${local.bucket_name}"
   roles = ["${aws_iam_role.s3_replication.name}"]
   policy_arn = "${aws_iam_policy.s3_replication.arn}"
 }
 
 resource "aws_s3_bucket" "destination" {
   provider = "aws.replica"
-  bucket = "${var.bucket_name}${var.replica_postfix}"
+  bucket = "${local.bucket_name}${var.replica_postfix}"
   region = "${var.replica_region}"
   versioning {
     enabled = true
@@ -103,7 +112,7 @@ resource "aws_s3_bucket" "destination" {
 
 resource "aws_s3_bucket" "source" {
   provider = "aws"
-  bucket = "${var.bucket_name}"
+  bucket = "${local.bucket_name}"
   region = "${var.region}"
   replication_configuration {
     role = "${aws_iam_role.s3_replication.arn}"
@@ -113,11 +122,19 @@ resource "aws_s3_bucket" "source" {
       status = "Enabled"
       destination {
         bucket = "${aws_s3_bucket.destination.arn}"
-        storage_class = "REDUCED_REDUNDANCY"
+        storage_class = "${var.storage_class}"
       }
     }
   }
   versioning {
     enabled = true
   }
+}
+
+output "arn" {
+  value = "${aws_s3_bucket.source.arn}"
+}
+
+output "replica_arn" {
+  value = "${aws_s3_bucket.destination.arn}"
 }
