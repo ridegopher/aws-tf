@@ -1,9 +1,16 @@
+variable "bucket_name" {
+  description = "The name of the source bucket"
+}
+
+# END REQUIRED FIELDS
+
 provider "aws" {
   region = "${var.region}"
 }
 
-variable "bucket_name" {
-  description = "The name of the source bucket"
+provider "aws" {
+  alias  = "replica"
+  region = "${var.replica_region}"
 }
 
 variable "replica_postfix" {
@@ -22,25 +29,26 @@ variable "replica_region" {
 }
 
 resource "aws_iam_role" "s3_replication" {
-  name = "${var.bucket_name}-s3-replication-role"
-  assume_role_policy = <<EOF
+  name = "s3-replication-role-${var.bucket_name}"
+  assume_role_policy = <<POLICY
 {
   "Version": "2012-10-17",
   "Statement": [
     {
       "Action": "sts:AssumeRole",
-      "Effect": "Allow",
       "Principal": {
         "Service": "s3.amazonaws.com"
-      }
+      },
+      "Effect": "Allow",
+      "Sid": ""
     }
   ]
 }
-EOF
+POLICY
 }
 
 resource "aws_iam_policy" "s3_replication" {
-  name = "${var.bucket_name}-s3-replication-policy"
+  name = "s3-replication-policy-${var.bucket_name}"
   policy = <<POLICY
 {
   "Version": "2012-10-17",
@@ -79,12 +87,13 @@ POLICY
 }
 
 resource "aws_iam_policy_attachment" "s3_replication" {
-  name = "${var.bucket_name}-s3-replication-policy-attachment"
+  name = "s3-replication-policy-attachment-${var.bucket_name}"
   roles = ["${aws_iam_role.s3_replication.name}"]
   policy_arn = "${aws_iam_policy.s3_replication.arn}"
 }
 
 resource "aws_s3_bucket" "destination" {
+  provider = "aws.replica"
   bucket = "${var.bucket_name}${var.replica_postfix}"
   region = "${var.replica_region}"
   versioning {
@@ -93,6 +102,7 @@ resource "aws_s3_bucket" "destination" {
 }
 
 resource "aws_s3_bucket" "source" {
+  provider = "aws"
   bucket = "${var.bucket_name}"
   region = "${var.region}"
   replication_configuration {
