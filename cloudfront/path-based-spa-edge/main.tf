@@ -48,3 +48,11 @@ resource "aws_lambda_function" "lambda" {
   timeout = 3
   publish = true
 }
+
+output "arn" {
+  value = "${aws_lambda_function.lambda.arn}"
+}
+
+output "version" {
+  value = "${aws_lambda_function.lambda.version}"
+}
