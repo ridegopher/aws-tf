@@ -16,6 +16,7 @@ variable "zone_id" {
 
 variable "cert_arn" {
   description = "The certificate arn for SSL"
+  default = ""
 }
 
 locals {
