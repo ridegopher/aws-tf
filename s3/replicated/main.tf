@@ -37,62 +37,54 @@ locals {
   bucket_name = "${var.bucket_name == "" ? "s3-replication-${data.aws_caller_identity.acct.account_id}" : var.bucket_name}"
 }
 
+data "aws_iam_policy_document" "s3_replication_role" {
+  provider = "aws"
+  statement {
+    actions = ["sts:AssumeRole"]
+    effect = "Allow"
+    principals {
+      type = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+  }
+}
+
 resource "aws_iam_role" "s3_replication" {
   name = "s3-replication-role-${local.bucket_name}"
-  assume_role_policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": "sts:AssumeRole",
-      "Principal": {
-        "Service": "s3.amazonaws.com"
-      },
-      "Effect": "Allow",
-      "Sid": ""
-    }
-  ]
+  assume_role_policy = "${data.aws_iam_policy_document.s3_replication_role.json}"
 }
-POLICY
+
+data "aws_iam_policy_document" "s3_replication_policy" {
+  provider = "aws"
+  statement {
+    actions = [
+      "s3:GetReplicationConfiguration",
+      "s3:ListBucket",
+    ]
+    effect = "Allow"
+    resources = ["${aws_s3_bucket.source.arn}"]
+  }
+  statement {
+    actions = [
+      "s3:GetObjectVersion",
+      "s3:GetObjectVersionAcl",
+    ]
+    effect = "Allow"
+    resources = ["${aws_s3_bucket.source.arn}/*"]
+  }
+  statement {
+    actions = [
+      "s3:ReplicateObject",
+      "s3:ReplicateDelete",
+    ]
+    effect = "Allow"
+    resources = ["${aws_s3_bucket.replica.arn}/*"]
+  }
 }
 
 resource "aws_iam_policy" "s3_replication" {
   name = "s3-replication-policy-${local.bucket_name}"
-  policy = <<POLICY
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Action": [
-        "s3:GetReplicationConfiguration",
-        "s3:ListBucket"
-      ],
-      "Effect": "Allow",
-      "Resource": [
-        "${aws_s3_bucket.source.arn}"
-      ]
-    },
-    {
-      "Action": [
-        "s3:GetObjectVersion",
-        "s3:GetObjectVersionAcl"
-      ],
-      "Effect": "Allow",
-      "Resource": [
-        "${aws_s3_bucket.source.arn}/*"
-      ]
-    },
-    {
-      "Action": [
-        "s3:ReplicateObject",
-        "s3:ReplicateDelete"
-      ],
-      "Effect": "Allow",
-      "Resource": "${aws_s3_bucket.destination.arn}/*"
-    }
-  ]
-}
-POLICY
+  policy = "${data.aws_iam_policy_document.s3_replication_policy.json}"
 }
 
 resource "aws_iam_policy_attachment" "s3_replication" {
@@ -101,7 +93,7 @@ resource "aws_iam_policy_attachment" "s3_replication" {
   policy_arn = "${aws_iam_policy.s3_replication.arn}"
 }
 
-resource "aws_s3_bucket" "destination" {
+resource "aws_s3_bucket" "replica" {
   provider = "aws.replica"
   bucket = "${local.bucket_name}${var.replica_postfix}"
   region = "${var.replica_region}"
@@ -121,7 +113,7 @@ resource "aws_s3_bucket" "source" {
       prefix = ""
       status = "Enabled"
       destination {
-        bucket = "${aws_s3_bucket.destination.arn}"
+        bucket = "${aws_s3_bucket.replica.arn}"
         storage_class = "${var.storage_class}"
       }
     }
@@ -136,5 +128,5 @@ output "arn" {
 }
 
 output "replica_arn" {
-  value = "${aws_s3_bucket.destination.arn}"
+  value = "${aws_s3_bucket.replica.arn}"
 }
