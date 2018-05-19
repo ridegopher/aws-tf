@@ -121,9 +121,9 @@ resource "aws_cloudfront_distribution" "main" {
   }
 }
 
-resource "aws_s3_bucket_object" "folder1" {
+resource "aws_s3_bucket_object" "origin_path" {
   bucket = "${data.aws_s3_bucket.bucket.id}"
-  acl    = "public"
+  acl    = "public-read"
   key    = "${local.origin_path}/"
   source = "/dev/null"
 }
