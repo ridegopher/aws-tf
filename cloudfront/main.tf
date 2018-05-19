@@ -2,7 +2,7 @@ provider "aws" {
   region = "${var.region}"
 }
 
-variable "domain" {
+variable "tld_domain" {
   description = "The TLD"
 }
 
@@ -12,11 +12,7 @@ variable "wildcard_acm_cert_arn" {
 }
 
 variable "bucket_name" {
-  description = "The name of the origin bucket"
-}
-
-variable "bucket_folder" {
-  description = "The name of the folder for the origin path. Will default to domain if empty"
+  description = "The name of the origin bucket. Will default to domain"
   default = ""
 }
 
@@ -37,14 +33,8 @@ variable "custom_error_response_page_path" {
   default = "/index.html"
 }
 
-data "aws_s3_bucket" "bucket" {
-  bucket = "${var.bucket_name}"
-}
-
-data "aws_caller_identity" "acct" {}
-
 data "aws_acm_certificate" "certificate" {
-  domain = "${var.domain}"
+  domain = "${var.tld_domain}"
   most_recent = true
   types = ["AMAZON_ISSUED"]
 }
@@ -54,17 +44,19 @@ data "aws_lambda_function" "edge" {
 }
 
 data "aws_route53_zone" "zone" {
-  name = "${var.domain}."
+  name = "${var.tld_domain}."
 }
 
 locals {
-  acct_id = "${data.aws_caller_identity.acct.account_id}"
-  origin_access_identity = "arn:aws:iam::${local.acct_id}:role/s3-replication-role-${var.bucket_name}"
-  origin_path = "${var.bucket_folder == "" ? var.domain : var.bucket_folder}"
-  bucket_domain_name = "${data.aws_s3_bucket.bucket.bucket_domain_name}"
+  bucket_name = "${var.bucket_name == "" ? var.tld_domain : var.bucket_name}"
   wildcard_acm_cert_arn = "${var.wildcard_acm_cert_arn == "" ? data.aws_acm_certificate.certificate.arn : var.wildcard_acm_cert_arn}"
   rewrite_lambda_arn = "${data.aws_lambda_function.edge.qualified_arn}"
   hosted_zone = "/hostedzone/${data.aws_route53_zone.zone.zone_id}"
+}
+
+module "s3_bucket" {
+  source = "../s3/versioned"
+  bucket_name = "${local.bucket_name}"
 }
 
 resource "aws_cloudfront_distribution" "main" {
@@ -76,10 +68,9 @@ resource "aws_cloudfront_distribution" "main" {
   aliases = "${var.cnames}"
   origin {
     origin_id = "s3-origin-bucket"
-    domain_name = "${local.bucket_domain_name}"
-    origin_path = "/${local.origin_path}"
+    domain_name = "${module.s3_bucket.bucket_domain_name}"
     s3_origin_config {
-      origin_access_identity = "${local.origin_access_identity}"
+      origin_access_identity = "${module.s3_bucket.origin_access_identity}"
     }
   }
 
@@ -121,13 +112,6 @@ resource "aws_cloudfront_distribution" "main" {
   }
 }
 
-resource "aws_s3_bucket_object" "origin_path" {
-  bucket = "${data.aws_s3_bucket.bucket.id}"
-  acl    = "public-read"
-  key    = "${local.origin_path}/"
-  source = "/dev/null"
-}
-
 resource "aws_route53_record" "top_domain" {
   count   = "${length(var.cnames)}"
   zone_id = "${local.hosted_zone}"
@@ -140,5 +124,7 @@ resource "aws_route53_record" "top_domain" {
   }
 }
 
-
+output "bucket_name" {
+  value = "${local.bucket_name}"
+}
 
