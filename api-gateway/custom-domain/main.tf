@@ -6,7 +6,7 @@ variable "region" {
   default = "us-east-1"
 }
 
-variable "domain" {
+variable "tld_domain" {
   description = "The TLD for the custom domain"
 }
 
@@ -14,27 +14,28 @@ variable "sub_domain" {
   description = "the sub domain portion"
 }
 
-variable "zone_id" {
-  description = "The zone id for the hosted zone"
+data "aws_route53_zone" "zone" {
+  name = "${var.tld_domain}."
 }
 
-variable "cert_arn" {
-  description = "The certificate arn for SSL"
-  default = ""
+data "aws_acm_certificate" "cert" {
+  domain = "${var.tld_domain}"
+  most_recent = true
+  types = ["AMAZON_ISSUED"]
 }
 
 locals {
-  full_domain = "${var.sub_domain}.${var.domain}"
-  hosted_zone = "/hostedzone/${var.zone_id}"
+  full_domain = "${var.sub_domain}.${var.tld_domain}"
+  hosted_zone = "/hostedzone/${data.aws_route53_zone.zone.zone_id}"
 }
 
 resource "aws_api_gateway_domain_name" "domain" {
   domain_name = "${local.full_domain}"
-  certificate_arn = "${var.cert_arn}"
+  certificate_arn = "${data.aws_acm_certificate.cert.arn}"
 }
 
 resource "aws_route53_record" "route53" {
-  zone_id = "/hostedzone/${var.zone_id}"
+  zone_id = "${local.hosted_zone}"
   name = "${local.full_domain}"
   type = "A"
   alias {
