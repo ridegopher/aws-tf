@@ -60,7 +60,7 @@ data "aws_route53_zone" "zone" {
 locals {
   acct_id = "${data.aws_caller_identity.acct.account_id}"
   origin_access_identity = "arn:aws:iam::${local.acct_id}:policy/s3-replication-policy-${var.bucket_name}"
-  origin_path = "/${var.bucket_folder == "" ? var.domain : var.bucket_folder}"
+  origin_path = "${var.bucket_folder == "" ? var.domain : var.bucket_folder}"
   bucket_domain_name = "${data.aws_s3_bucket.bucket.bucket_domain_name}"
   wildcard_acm_cert_arn = "${var.wildcard_acm_cert_arn == "" ? data.aws_acm_certificate.certificate.arn : var.wildcard_acm_cert_arn}"
   rewrite_lambda_arn = "${data.aws_lambda_function.edge.qualified_arn}"
@@ -77,7 +77,7 @@ resource "aws_cloudfront_distribution" "main" {
   origin {
     origin_id = "s3-origin-bucket"
     domain_name = "${local.bucket_domain_name}"
-    origin_path = "${local.origin_path}"
+    origin_path = "/${local.origin_path}"
     s3_origin_config {
       origin_access_identity = "${local.origin_access_identity}"
     }
@@ -119,6 +119,13 @@ resource "aws_cloudfront_distribution" "main" {
       restriction_type = "none"
     }
   }
+}
+
+resource "aws_s3_bucket_object" "folder1" {
+  bucket = "${data.aws_s3_bucket.bucket.id}"
+  acl    = "public"
+  key    = "${local.origin_path}/"
+  source = "/dev/null"
 }
 
 resource "aws_route53_record" "top_domain" {
