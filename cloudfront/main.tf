@@ -59,7 +59,7 @@ data "aws_route53_zone" "zone" {
 
 locals {
   acct_id = "${data.aws_caller_identity.acct.account_id}"
-  origin_access_identity = "arn:aws:iam::${local.acct_id}:policy/s3-replication-policy-${var.bucket_name}"
+  origin_access_identity = "arn:aws:iam::${local.acct_id}:role/s3-replication-role-${var.bucket_name}"
   origin_path = "${var.bucket_folder == "" ? var.domain : var.bucket_folder}"
   bucket_domain_name = "${data.aws_s3_bucket.bucket.bucket_domain_name}"
   wildcard_acm_cert_arn = "${var.wildcard_acm_cert_arn == "" ? data.aws_acm_certificate.certificate.arn : var.wildcard_acm_cert_arn}"
