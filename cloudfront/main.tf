@@ -84,7 +84,7 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   default_cache_behavior {
-    target_origin_id = "s3-origin-source"
+    target_origin_id = "s3-origin-bucket"
     allowed_methods = ["GET", "HEAD"]
     cached_methods = ["GET", "HEAD"]
     viewer_protocol_policy = "redirect-to-https"
